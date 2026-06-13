@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=78"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "multi-platform-video-downloader"
+version = "1.0.0"
+description = "CLI and Tkinter GUI for downloading media through yt-dlp"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "yt-dlp==2026.6.9",
+    "typer==0.26.7",
+    "rich==14.2.0",
+    "pydantic==2.13.4",
+    "PyYAML==6.0.3",
+    "imageio-ffmpeg==0.6.0",
+]
+
+[project.scripts]
+video-downloader = "app.cli:app"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers --cov=app --cov-report=term-missing"
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
+omit = ["app/gui.py", "app/cli.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 80
+
+[tool.pylint.main]
+py-version = "3.12"
+jobs = 0
+ignore-paths = ["tests"]
+
+[tool.pylint.format]
+max-line-length = 88
+
+[tool.pylint.design]
+max-args = 8
+max-positional-arguments = 8
+max-attributes = 12
+
+[tool.pylint."messages control"]
+disable = [
+    "duplicate-code",
+    "fixme",
+    "too-few-public-methods",
+]

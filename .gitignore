@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+downloads/
+logs/
+dist/
+build/
+*.egg-info/
+*.spec.bak
+config.local.yaml
+cookies.txt

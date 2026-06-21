@@ -20,14 +20,16 @@ class AppConfig(BaseModel):
     fragment_retries: int = Field(default=10, ge=0, le=100)
     socket_timeout: int = Field(default=30, ge=1, le=300)
     concurrent_fragments: int = Field(default=4, ge=1, le=16)
-    output_template: str = "%(title).180B [%(id)s].%(ext)s"
+    output_template: str = "%(title).60B [%(id)s].%(ext)s"
     cookies_file: Path | None = None
     ffmpeg_path: Path | None = None
     log_path: Path = Path("logs/app.log")
+    browser_log_path: Path = Path("logs/browser.log")
 
     @field_validator(
         "download_path",
         "log_path",
+        "browser_log_path",
         "cookies_file",
         "ffmpeg_path",
         mode="before",
@@ -43,6 +45,7 @@ class AppConfig(BaseModel):
         """Create writable runtime directories."""
         self.download_path.mkdir(parents=True, exist_ok=True)
         self.log_path.parent.mkdir(parents=True, exist_ok=True)
+        self.browser_log_path.parent.mkdir(parents=True, exist_ok=True)
 
 
 def load_config(path: Path | str = "config.yaml") -> AppConfig:

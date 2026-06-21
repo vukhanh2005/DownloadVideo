@@ -10,6 +10,27 @@
 4. **Services** thực hiện use case, kiểm tra dung lượng và cô lập lỗi batch.
 5. **CLI/GUI** chỉ chuyển input thành lời gọi service và render output.
 
+## Browser Downloader
+
+`app/browser` là một bounded context riêng:
+
+- `MediaDetector`: phân loại URL/MIME và suy luận quality.
+- `MediaRequestInterceptor`: adapter QtWebEngine quan sát request, không sửa hay
+  chặn traffic.
+- `BrowserHttpClient`: HEAD hoặc Range probe giới hạn để lấy MIME/kích thước.
+- `parse_hls_playlist`: phân tích master variants và từ chối dấu hiệu DRM.
+- `BrowserDownloadManager`: task state machine cho Pause/Resume/Cancel, dùng
+  resume `.part` của yt-dlp.
+
+GUI dùng một `QWebEngineProfile` chung để browser tab chia sẻ cache/cookie.
+Cookie, Referer và User-Agent được chuyển cho tác vụ tải đúng phiên hợp lệ.
+Qt widget giao tiếp với download worker qua signal để không cập nhật UI từ
+background thread.
+
+Media detection kết hợp interceptor và JavaScript Performance API vì Qt không
+cung cấp response MIME cho interceptor request. MIME được xác minh ngoài luồng
+GUI bằng HTTP probe có timeout và giới hạn payload.
+
 Thiết kế này giữ dependency direction từ ngoài vào trong và cho phép thay
 `yt-dlp` bằng adapter khác thông qua protocol/factory.
 

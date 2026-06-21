@@ -153,3 +153,19 @@ def test_best_prefers_windows_compatible_codecs(
     selector = constructor.call_args.args[0]["format"]
     assert selector.startswith("bv*[ext=mp4][vcodec^=avc1]+ba[ext=m4a]")
     assert selector.endswith("bv*+ba/b")
+
+
+def test_default_output_name_is_short(config: AppConfig) -> None:
+    """Default output template caps the title while retaining the video ID."""
+    ydl = MagicMock()
+    ydl.extract_info.return_value = {
+        "id": "short",
+        "title": "Short",
+        "formats": [],
+    }
+    constructor = _ydl_context(ydl)
+    with patch("app.downloaders.yt_dlp_downloader.yt_dlp.YoutubeDL", constructor):
+        YouTubeDownloader(config).get_info("https://youtu.be/short")
+    output = constructor.call_args.args[0]["outtmpl"]["default"]
+    assert "%(title).60B" in output
+    assert "[%(id)s]" in output

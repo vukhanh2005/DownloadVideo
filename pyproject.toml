@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "multi-platform-video-downloader"
 version = "1.0.0"
-description = "CLI and Tkinter GUI for downloading media through yt-dlp"
+description = "CLI and PySide6 browser GUI for downloading authorized media"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -15,6 +15,7 @@ dependencies = [
     "pydantic==2.13.4",
     "PyYAML==6.0.3",
     "imageio-ffmpeg==0.6.0",
+    "PySide6==6.11.1",
 ]
 
 [project.scripts]
@@ -27,6 +28,14 @@ include = ["app*"]
 line-length = 88
 target-version = ["py312"]
 
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+exclude = ["build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers --cov=app --cov-report=term-missing"
@@ -34,7 +43,11 @@ addopts = "--strict-markers --cov=app --cov-report=term-missing"
 [tool.coverage.run]
 branch = true
 source = ["app"]
-omit = ["app/gui.py", "app/cli.py"]
+omit = [
+    "app/gui/*",
+    "app/cli.py",
+    "app/browser/interceptor.py",
+]
 
 [tool.coverage.report]
 show_missing = true
@@ -45,6 +58,7 @@ fail_under = 80
 py-version = "3.12"
 jobs = 0
 ignore-paths = ["tests"]
+extension-pkg-allow-list = ["PySide6"]
 
 [tool.pylint.format]
 max-line-length = 88
@@ -53,10 +67,12 @@ max-line-length = 88
 max-args = 8
 max-positional-arguments = 8
 max-attributes = 12
+max-statements = 60
 
 [tool.pylint."messages control"]
 disable = [
     "duplicate-code",
     "fixme",
     "too-few-public-methods",
+    "too-many-instance-attributes",
 ]

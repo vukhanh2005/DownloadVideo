@@ -4,12 +4,12 @@
 
 - Python target: 3.12+
 - Package wheel build: passed
-- Automated tests: 37 passed
-- Branch-aware coverage: 86.41%
+- Automated tests: 70 passed
+- Branch-aware coverage: 82.47%
 - Pylint: 10.00/10
 - Black: passed
 - CLI smoke test: passed
-- Tkinter GUI import smoke test: passed
+- PySide6/QtWebEngine GUI smoke test: passed
 
 ## Architecture
 
@@ -30,7 +30,7 @@ service hoặc UI.
 - `PyYAML`: đọc `config.yaml`.
 - `pytest`/`pytest-cov`: unit, integration và coverage.
 - `Black`/`Pylint`: format và static quality gate.
-- `Tkinter`: GUI có sẵn trong Python, tránh runtime GUI dependency lớn.
+- `PySide6` + `QtWebEngine`: GUI hiện đại và Chromium nhúng nhiều tab.
 
 ## Decisions
 
@@ -41,6 +41,10 @@ service hoặc UI.
 - Batch cô lập lỗi theo URL và có cả chế độ tuần tự lẫn thread pool.
 - URL detection dùng hostname suffix thay vì substring để chặn domain giả mạo.
 - Cookie không được lưu trong repository và chỉ nhận qua đường dẫn cấu hình.
+- Browser request interceptor chỉ quan sát traffic hợp lệ; parser từ chối các
+  dấu hiệu DRM HLS và không có logic vượt paywall/bảo vệ nội dung.
+- Pause/Resume được triển khai bằng cách dừng an toàn yt-dlp và giữ `.part`.
 
-Coverage 86.41% tập trung vào core, config, factory, downloader adapter và
-service. CLI/GUI mỏng được smoke test và loại khỏi phép đo coverage tự động.
+Coverage 82.47% tập trung vào core, browser detector/parser/download manager,
+config, factory, downloader adapter và service. CLI/Qt GUI adapter được smoke
+test bằng Chromium thật và loại khỏi phép đo coverage tự động.

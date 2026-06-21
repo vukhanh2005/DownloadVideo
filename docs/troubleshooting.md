@@ -21,5 +21,15 @@
 | Timeout/kết nối | Trả `NetworkError`, giữ file `.part` |
 | Thiếu dung lượng biết trước | Dừng trước download |
 | Lỗi extractor khác | Log đầy đủ và hiện thông báo ngắn |
+| HLS có DRM | Từ chối trước khi tạo tác vụ tải |
+| Browser media URL hết hạn | Refresh trang và phát lại media |
+| Pause | Giữ `.part`, Resume chạy lại với HTTP Range/fragment |
 
 Trong batch, các lỗi này được lưu theo URL và các download còn lại tiếp tục.
+
+## Browser diagnostics
+
+Browser navigation, media detection và download lifecycle được ghi tại
+`logs/browser.log`. Với trang dùng lazy loading, cần nhấn Play hoặc cuộn đến
+video để Chromium thực sự request media. Signed URL có thể hết hạn và phải được
+phát hiện lại trong cùng phiên.

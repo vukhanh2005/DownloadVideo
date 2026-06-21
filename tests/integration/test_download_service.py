@@ -1,10 +1,8 @@
 """Integration tests across service and downloader contracts without network I/O."""
 
-from pathlib import Path
-
-from app.config.settings import AppConfig
 import pytest
 
+from app.config.settings import AppConfig
 from app.core.exceptions import DownloadFailedError, InsufficientStorageError
 from app.models.download import DownloadResult
 from app.models.platform import Platform

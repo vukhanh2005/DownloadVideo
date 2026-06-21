@@ -11,14 +11,17 @@ from app.models.quality import Quality
 
 def test_load_config_and_create_directories(tmp_path: Path) -> None:
     """Configured values are validated and runtime folders are prepared."""
+    download_path = tmp_path / "media"
+    log_path = tmp_path / "runtime" / "app.log"
     config_file = tmp_path / "config.yaml"
     config_file.write_text(
-        "download_path: media\nmax_threads: 5\ndefault_quality: 720p\n"
-        "log_path: runtime/app.log\n",
+        f"download_path: {download_path.as_posix()}\n"
+        "max_threads: 5\ndefault_quality: 720p\n"
+        f"log_path: {log_path.as_posix()}\n",
         encoding="utf-8",
     )
     config = load_config(config_file)
-    assert config.download_path == Path("media")
+    assert config.download_path == download_path
     assert config.max_threads == 5
     assert config.default_quality is Quality.P720
     assert config.download_path.is_dir()
@@ -32,6 +35,7 @@ def test_missing_config_uses_defaults(
     monkeypatch.chdir(tmp_path)
     config = load_config("missing.yaml")
     assert config.default_quality is Quality.BEST
+    assert config.output_template == "%(title).60B [%(id)s].%(ext)s"
     assert config.download_path.is_dir()
 
 

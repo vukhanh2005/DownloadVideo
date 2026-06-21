@@ -5,7 +5,8 @@ retries: 10
 fragment_retries: 10
 socket_timeout: 30
 concurrent_fragments: 4
-output_template: "%(title).180B [%(id)s].%(ext)s"
+output_template: "%(title).60B [%(id)s].%(ext)s"
 cookies_file:
 ffmpeg_path:
 log_path: logs/app.log
+browser_log_path: logs/browser.log

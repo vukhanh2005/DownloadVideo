@@ -1,6 +1,6 @@
 # Multi-platform Video Downloader
 
-Ứng dụng Python 3.12+ tải video và audio bằng CLI hoặc giao diện Tkinter. Backend
+Ứng dụng Python 3.12+ tải video và audio bằng CLI hoặc giao diện PySide6. Backend
 `yt-dlp` hỗ trợ:
 
 - YouTube và playlist YouTube
@@ -24,7 +24,9 @@ nhiệm tuân thủ điều khoản dịch vụ và luật bản quyền áp d�
 - Resume qua file `.part`, retry request và fragment.
 - YAML config được kiểm tra bằng Pydantic.
 - Log xoay vòng tại `logs/app.log`.
-- CLI Typer/Rich và GUI Tkinter.
+- CLI Typer/Rich và GUI PySide6/QtWebEngine.
+- Browser Downloader nhiều tab, tự phát hiện MP4/WebM/HLS/audio không DRM.
+- Download Manager hỗ trợ Pause, Resume và Cancel.
 - Unit/integration test không phụ thuộc mạng.
 
 ## Cài đặt
@@ -88,6 +90,35 @@ python main.py batch urls.txt --sequential
 python main.py gui
 ```
 
+## Browser Downloader
+
+Tab **Browser Downloader** là trình duyệt Chromium tích hợp dành cho media mà
+người dùng có quyền truy cập. Thanh điều hướng hỗ trợ Back, Forward, Refresh,
+Home, Go và nhiều browser tab.
+
+Khi trang tải media, ứng dụng tự động:
+
+1. Theo dõi network request của QtWebEngine.
+2. Quét thẻ `video`, `audio`, `source` và Performance Resource API.
+3. Nhận diện MP4, WebM, M3U8, MP3, M4A, AAC, OGG và Opus.
+4. Đọc MIME, kích thước và HLS variants bằng request giới hạn.
+5. Hiển thị nút Download cho từng dòng.
+
+Download Manager phía dưới hiển thị trạng thái, phần trăm, tốc độ, ETA và file
+đầu ra. `Pause` dừng tác vụ nhưng giữ file `.part`; `Resume` tiếp tục từ dữ liệu
+đã tải; `Cancel` dừng và xóa file tạm.
+
+Ví dụ sử dụng:
+
+1. Mở tab Browser Downloader.
+2. Nhập URL blog hoặc trang học tập có video công khai.
+3. Phát video nếu trang chỉ tải media sau tương tác.
+4. Chọn quality HLS được phát hiện và nhấn Download.
+
+Ứng dụng không giải mã DRM, không vượt paywall, không bỏ qua đăng nhập và không
+can thiệp cơ chế bảo vệ nội dung. HLS có dấu hiệu Widevine, FairPlay, PlayReady
+hoặc SAMPLE-AES sẽ bị từ chối.
+
 ## Build Windows EXE
 
 ```powershell
@@ -96,7 +127,7 @@ pyinstaller --clean --noconfirm VideoDownloader.spec
 .\dist\VideoDownloader.exe
 ```
 
-File `dist/VideoDownloader.exe` mở trực tiếp giao diện Tkinter. Bản đóng gói chứa
+File `dist/VideoDownloader.exe` mở trực tiếp giao diện Qt. Bản đóng gói chứa
 Python, thư viện ứng dụng và FFmpeg để ghép luồng hoặc xuất MP3.
 
 Sau khi cài project bằng `pip install .`, lệnh `video-downloader` tương đương
@@ -114,10 +145,11 @@ retries: 10
 fragment_retries: 10
 socket_timeout: 30
 concurrent_fragments: 4
-output_template: "%(title).180B [%(id)s].%(ext)s"
+output_template: "%(title).60B [%(id)s].%(ext)s"
 cookies_file:
 ffmpeg_path:
 log_path: logs/app.log
+browser_log_path: logs/browser.log
 ```
 
 `max_threads` điều khiển số URL batch chạy đồng thời. `concurrent_fragments`
@@ -137,6 +169,7 @@ Không chia sẻ file cookie vì nó có thể chứa phiên đăng nhập.
 
 ```text
 app/
+├── browser/      # detector, HLS, HTTP probe, download manager
 ├── config/       # YAML và validation
 ├── core/         # exception, protocol
 ├── downloaders/  # adapter yt-dlp và platform factory
@@ -144,12 +177,16 @@ app/
 ├── services/     # use case metadata/download/batch
 ├── utils/        # URL, logging, formatting
 ├── cli.py
-└── gui.py
+└── gui/          # PySide6 classic tab và Browser Downloader
 ```
 
 Luồng phụ thuộc là UI -> service -> protocol/factory -> downloader adapter.
 Model domain không phụ thuộc UI. Để thêm nền tảng, tạo adapter với `platform`,
 đăng ký trong `DownloaderFactory`, rồi bổ sung domain vào detector.
+
+Browser Downloader dùng QWebEngine interceptor như adapter Qt. Detector, HTTP
+probe, HLS parser và download manager không phụ thuộc widget nên có thể test độc
+lập.
 
 Chi tiết quyết định kỹ thuật nằm tại
 [`docs/architecture.md`](docs/architecture.md).
@@ -159,6 +196,7 @@ Chi tiết quyết định kỹ thuật nằm tại
 ```bash
 python -m pip install -r requirements-dev.txt
 black --check .
+ruff check .
 pylint app main.py
 pytest
 ```
@@ -202,6 +240,22 @@ thông báo thân thiện.
 
 Các nền tảng thường thay đổi giao diện. Cài bản `yt-dlp` mới tương thích, chạy
 lại với `--verbose`, rồi xem `logs/app.log`.
+
+### Browser không phát hiện video
+
+Nhấn Play để trang phát sinh network request, sau đó chờ vài giây hoặc Refresh.
+Media qua `blob:` chỉ được tải khi URL HTTP nguồn xuất hiện trong request hoặc
+Performance API. Nội dung DRM không được thêm vào danh sách tải.
+
+### Browser hiển thị trang trắng
+
+Cập nhật driver đồ họa. Trên máy ảo hoặc Remote Desktop, QtWebEngine có thể tự
+fallback sang software rendering. Xem `logs/browser.log` để kiểm tra URL và lỗi.
+
+### HLS tải lỗi
+
+URL manifest có thể hết hạn hoặc yêu cầu phiên duyệt. Hãy tải ngay trong cùng
+phiên browser. Cookie và Referer hiện tại được chuyển cho download manager.
 
 ## Giới hạn thực tế
 

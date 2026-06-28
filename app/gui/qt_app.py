@@ -11,8 +11,10 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication, QMainWindow, QTabWidget
 
 from app.config.settings import AppConfig, load_config
+from app.gui.browser_tab import BrowserDownloaderTab
 from app.gui.classic_tab import ClassicDownloaderTab
 from app.gui.history_tab import HistoryTab
+from app.gui.settings_tab import SettingsTab
 from app.utils.logging import configure_browser_logging, configure_logging
 
 DARK_STYLESHEET = """
@@ -289,31 +291,48 @@ QToolTip {
 class MainWindow(QMainWindow):
     """Top-level window hosting the video downloader."""
 
-    def __init__(self, config: AppConfig) -> None:
+    def __init__(self, config: AppConfig, config_path: Path = Path("config.yaml")) -> None:
         super().__init__()
         self.setWindowTitle("🎬 Video Downloader")
-        self.resize(680, 460)
-        self.setMinimumSize(520, 380)
+        self.resize(740, 520)
+        self.setMinimumSize(560, 420)
 
-        tabs = QTabWidget()
-        tabs.setDocumentMode(True)
+        self._tabs = QTabWidget()
+        self._tabs.setDocumentMode(True)
 
-        downloader = ClassicDownloaderTab(config)
+        self._downloader = ClassicDownloaderTab(config)
+        self._browser = BrowserDownloaderTab(config)
         history = HistoryTab()
+        self._settings = SettingsTab(config, config_path)
 
         # Wire download completion to history
-        downloader.file_saved.connect(history.add_entry)
+        self._downloader.file_saved.connect(history.add_entry)
+        self._browser.file_saved.connect(history.add_entry)
 
-        tabs.addTab(downloader, "⬇  Download")
-        tabs.addTab(history, "📋  History")
-        self.setCentralWidget(tabs)
+        # Wire config changes to live-reload downloader tabs
+        self._settings.config_saved.connect(self._on_config_saved)
+
+        self._tabs.addTab(self._downloader, "⬇  Download")
+        self._tabs.addTab(self._browser, "🌐  Browser Downloader")
+        self._tabs.addTab(history, "📋  History")
+        self._tabs.addTab(self._settings, "⚙  Settings")
+        self.setCentralWidget(self._tabs)
 
         self.statusBar().showMessage(
             "⚠  Download only media you are authorized to access. DRM is not supported."
         )
 
+    def _on_config_saved(self, new_config: AppConfig) -> None:
+        """Propagate new config to the downloader tabs without restart."""
+        self._downloader.config = new_config
+        self._browser.config = new_config
+        self.statusBar().showMessage(
+            "✅  Settings saved — new downloads will use the updated configuration.",
+            4000,
+        )
 
-def launch_gui(config_path: Path = Path("config.yaml")) -> None:
+
+def launch_gui(config_path: Path = Path("config.yaml")) -> None:  # noqa: B008
     """Create and run the PySide6 desktop application."""
 
     config = load_config(config_path)
@@ -331,6 +350,6 @@ def launch_gui(config_path: Path = Path("config.yaml")) -> None:
     font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
     application.setFont(font)
 
-    window = MainWindow(config)
+    window = MainWindow(config, config_path)
     window.show()
     application.exec()

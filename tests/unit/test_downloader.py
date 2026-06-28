@@ -169,3 +169,67 @@ def test_default_output_name_is_short(config: AppConfig) -> None:
     output = constructor.call_args.args[0]["outtmpl"]["default"]
     assert "%(title).60B" in output
     assert "[%(id)s]" in output
+
+
+def test_video_only_download_configures_video_format(config: AppConfig, tmp_path: Path) -> None:
+    """Video only stream type filters out audio formats."""
+    output = tmp_path / "video.mp4"
+    output.write_bytes(b"video")
+    ydl = MagicMock()
+    ydl.extract_info.return_value = {
+        "id": "video",
+        "title": "Video",
+        "requested_downloads": [{"filepath": str(output)}],
+    }
+    constructor = _ydl_context(ydl)
+    with patch("app.downloaders.yt_dlp_downloader.yt_dlp.YoutubeDL", constructor):
+        YouTubeDownloader(config).download(
+            "https://youtu.be/video", "1080p", download_type="video"
+        )
+    options = constructor.call_args.args[0]
+    selector = options["format"]
+    assert "height<=1080" in selector
+    assert "+ba" not in selector
+    assert "postprocessors" not in options
+
+
+def test_download_type_audio_forces_audio_extraction(config: AppConfig, tmp_path: Path) -> None:
+    """Selecting audio download type extracts audio and adds postprocessors."""
+    output = tmp_path / "audio.mp3"
+    output.write_bytes(b"audio")
+    ydl = MagicMock()
+    ydl.extract_info.return_value = {
+        "id": "audio",
+        "title": "Audio",
+        "requested_downloads": [{"filepath": str(output)}],
+    }
+    constructor = _ydl_context(ydl)
+    with patch("app.downloaders.yt_dlp_downloader.yt_dlp.YoutubeDL", constructor):
+        YouTubeDownloader(config).download(
+            "https://youtu.be/audio", "1080p", download_type="audio"
+        )
+    options = constructor.call_args.args[0]
+    assert options["format"] == "ba/b"
+    assert options["postprocessors"][0]["preferredcodec"] == "mp3"
+
+
+def test_download_type_audio_with_different_codecs(config: AppConfig, tmp_path: Path) -> None:
+    """Selecting audio download type with custom codec propagates correctly."""
+    output = tmp_path / "audio.wav"
+    output.write_bytes(b"audio")
+    ydl = MagicMock()
+    ydl.extract_info.return_value = {
+        "id": "audio",
+        "title": "Audio",
+        "requested_downloads": [{"filepath": str(output)}],
+    }
+    constructor = _ydl_context(ydl)
+    with patch("app.downloaders.yt_dlp_downloader.yt_dlp.YoutubeDL", constructor):
+        YouTubeDownloader(config).download(
+            "https://youtu.be/audio", "1080p", download_type="audio", audio_format="wav"
+        )
+    options = constructor.call_args.args[0]
+    assert options["format"] == "ba/b"
+    assert options["postprocessors"][0]["preferredcodec"] == "wav"
+
+

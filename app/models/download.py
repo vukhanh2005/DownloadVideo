@@ -1,8 +1,23 @@
-"""Download status and result models."""
-
+from enum import StrEnum
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class DownloadType(StrEnum):
+    """Target media streams to extract."""
+
+    VIDEO_AUDIO = "video+audio"
+    VIDEO_ONLY = "video"
+    AUDIO_ONLY = "audio"
+
+
+class AudioFormat(StrEnum):
+    """Supported target audio codecs."""
+
+    MP3 = "mp3"
+    WAV = "wav"
+    OGG = "ogg"
 
 
 class DownloadProgress(BaseModel):

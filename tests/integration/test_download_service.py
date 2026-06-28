@@ -33,10 +33,12 @@ class FakeDownloader:
         url: str,
         quality: str,
         *,
+        download_type: str = "video+audio",
+        audio_format: str = "mp3",
         playlist: bool = False,
         progress_callback=None,
     ) -> list[DownloadResult]:
-        del quality, playlist, progress_callback
+        del quality, download_type, audio_format, playlist, progress_callback
         if "fail" in url:
             raise DownloadFailedError("fixture failure")
         path = self.config.download_path / "fixture.mp4"

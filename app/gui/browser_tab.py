@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 import logging
 import shutil
 import subprocess
@@ -87,6 +88,9 @@ class BrowserWebView(QWebEngineView):
 
 class BrowserDownloaderTab(QWidget):
     """Browser UI, media table, and browser-download manager."""
+
+    # Signal emitted when a file is saved: (title, saved_path, timestamp)
+    file_saved = Signal(str, str, str)
 
     def __init__(self, config: AppConfig) -> None:
         super().__init__()
@@ -568,9 +572,13 @@ class BrowserDownloaderTab(QWidget):
 
             # Replace controls with Open Folder button
             self._set_open_folder_button(snapshot.task_id, dest.parent)
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.file_saved.emit(snapshot.media.name, str(dest), timestamp)
         else:
             # User cancelled — add Open Folder for original location
             self._set_open_folder_button(snapshot.task_id, src.parent)
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.file_saved.emit(snapshot.media.name, str(src), timestamp)
 
     def _set_open_folder_button(self, task_id: str, folder: Path) -> None:
         """Replace download controls with an Open Folder button."""

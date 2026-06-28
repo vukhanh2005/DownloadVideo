@@ -37,6 +37,8 @@ class DownloadService:
         url: str,
         quality: Quality | str | None = None,
         *,
+        download_type: str = "video+audio",
+        audio_format: str = "mp3",
         playlist: bool = False,
         progress_callback: ProgressCallback | None = None,
     ) -> list[DownloadResult]:
@@ -47,6 +49,8 @@ class DownloadService:
         return self.factory.create(url).download(
             url,
             selected.value,
+            download_type=download_type,
+            audio_format=audio_format,
             playlist=playlist,
             progress_callback=progress_callback,
         )
@@ -56,13 +60,21 @@ class DownloadService:
         urls: Iterable[str],
         quality: Quality | str | None = None,
         *,
+        download_type: str = "video+audio",
+        audio_format: str = "mp3",
         parallel: bool = True,
         progress_callback: ProgressCallback | None = None,
     ) -> BatchResult:
         """Download multiple URLs and retain independent failure details."""
         clean_urls = tuple(dict.fromkeys(url.strip() for url in urls if url.strip()))
         if not parallel or self.config.max_threads == 1:
-            return self._download_sequential(clean_urls, quality, progress_callback)
+            return self._download_sequential(
+                clean_urls,
+                quality,
+                download_type=download_type,
+                audio_format=audio_format,
+                progress_callback=progress_callback,
+            )
 
         completed: list[DownloadResult] = []
         failures: dict[str, str] = {}
@@ -74,6 +86,8 @@ class DownloadService:
                     self.download,
                     url,
                     quality,
+                    download_type=download_type,
+                    audio_format=audio_format,
                     progress_callback=progress_callback,
                 ): url
                 for url in clean_urls
@@ -95,6 +109,9 @@ class DownloadService:
         self,
         urls: tuple[str, ...],
         quality: Quality | str | None,
+        *,
+        download_type: str = "video+audio",
+        audio_format: str = "mp3",
         progress_callback: ProgressCallback | None,
     ) -> BatchResult:
         completed: list[DownloadResult] = []
@@ -102,7 +119,13 @@ class DownloadService:
         for url in urls:
             try:
                 completed.extend(
-                    self.download(url, quality, progress_callback=progress_callback)
+                    self.download(
+                        url,
+                        quality,
+                        download_type=download_type,
+                        audio_format=audio_format,
+                        progress_callback=progress_callback,
+                    )
                 )
             except VideoDownloaderError as exc:
                 LOGGER.error("batch item failed | url=%s | error=%s", url, exc)

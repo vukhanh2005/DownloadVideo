@@ -7,6 +7,10 @@ socket_timeout: 30
 concurrent_fragments: 4
 output_template: "%(title).60B [%(id)s].%(ext)s"
 cookies_file:
+# Auto-extract cookies from an installed browser (takes priority over cookies_file).
+# Supported values: chrome, chromium, firefox, edge, brave, opera, vivaldi
+# Leave empty to disable.
+cookies_from_browser:
 ffmpeg_path:
 log_path: logs/app.log
 browser_log_path: logs/browser.log

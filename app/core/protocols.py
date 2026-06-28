@@ -20,6 +20,8 @@ class Downloader(Protocol):
         url: str,
         quality: str,
         *,
+        download_type: str = "video+audio",
+        audio_format: str = "mp3",
         playlist: bool = False,
         progress_callback: ProgressCallback | None = None,
     ) -> list[DownloadResult]:

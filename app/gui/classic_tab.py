@@ -27,25 +27,38 @@ from PySide6.QtWidgets import (
 )
 
 from app.config.settings import AppConfig
-from app.core.exceptions import VideoDownloaderError
+from app.core.exceptions import PrivateVideoError, VideoDownloaderError
+from app.gui.settings_tab import BROWSER_CHOICES
 from app.models.download import DownloadProgress
 from app.models.quality import Quality
 from app.services.download_service import DownloadService
 from app.utils.formatting import format_bytes, format_duration
 
+# Auth-related keywords that trigger the cookie-retry dialog
+_AUTH_KEYWORDS = ("authentication", "login required", "sign in", "cookies_file")
+
 
 class _WorkerSignals(QObject):
     completed = Signal(object)
-    failed = Signal(str)
+    failed = Signal(str, bool)   # message, is_auth_error
     progress = Signal(object)
 
 
 class _DownloadWorker(QRunnable):
-    def __init__(self, service: DownloadService, url: str, quality: Quality) -> None:
+    def __init__(
+        self,
+        service: DownloadService,
+        url: str,
+        quality: Quality,
+        download_type: str = "video+audio",
+        audio_format: str = "mp3",
+    ) -> None:
         super().__init__()
         self.service = service
         self.url = url
         self.quality = quality
+        self.download_type = download_type
+        self.audio_format = audio_format
         self.signals = _WorkerSignals()
 
     @Slot()
@@ -55,11 +68,14 @@ class _DownloadWorker(QRunnable):
             results = self.service.download(
                 self.url,
                 self.quality,
+                download_type=self.download_type,
+                audio_format=self.audio_format,
                 progress_callback=self.signals.progress.emit,
             )
             self.signals.completed.emit(results)
         except (VideoDownloaderError, OSError, ValueError) as exc:
-            self.signals.failed.emit(str(exc))
+            is_auth = isinstance(exc, PrivateVideoError)
+            self.signals.failed.emit(str(exc), is_auth)
 
 
 class _InfoWorker(QRunnable):
@@ -75,7 +91,7 @@ class _InfoWorker(QRunnable):
         try:
             self.signals.completed.emit(self.service.get_info(self.url))
         except (VideoDownloaderError, OSError, ValueError) as exc:
-            self.signals.failed.emit(str(exc))
+            self.signals.failed.emit(str(exc), False)
 
 
 class ClassicDownloaderTab(QWidget):
@@ -106,6 +122,21 @@ class ClassicDownloaderTab(QWidget):
         self.quality_combo.addItems([quality.value for quality in Quality])
         self.quality_combo.setCurrentText(self.config.default_quality.value)
         form.addRow("📊  Quality", self.quality_combo)
+
+        self.type_combo = QComboBox()
+        self.type_combo.addItems(["Video + Audio", "Video Only", "Audio Only"])
+        self.type_combo.setCurrentIndex(0)
+        self.type_combo.currentIndexChanged.connect(self._on_type_changed)
+        form.addRow("📦  Download Type", self.type_combo)
+
+        self.audio_format_label = QLabel("🎵  Audio Format")
+        self.audio_format_combo = QComboBox()
+        self.audio_format_combo.addItems(["mp3", "wav", "ogg"])
+        self.audio_format_combo.setCurrentText("mp3")
+        self.audio_format_label.setVisible(False)
+        self.audio_format_combo.setVisible(False)
+        form.addRow(self.audio_format_label, self.audio_format_combo)
+
         layout.addLayout(form)
 
         # ── Action Buttons ──
@@ -140,9 +171,19 @@ class ClassicDownloaderTab(QWidget):
         self.progress.setRange(0, 100)
         progress_layout.addWidget(self.progress)
 
+        status_layout = QHBoxLayout()
         self.status = QLabel("Ready")
         self.status.setProperty("cssClass", "status")
-        progress_layout.addWidget(self.status)
+        status_layout.addWidget(self.status)
+
+        status_layout.addStretch()
+
+        self.downloading_label = QLabel("Đang tải...")
+        self.downloading_label.setStyleSheet("color: #22C55E; font-weight: bold;")
+        self.downloading_label.setVisible(False)
+        status_layout.addWidget(self.downloading_label)
+
+        progress_layout.addLayout(status_layout)
         layout.addWidget(progress_group)
 
         # ── Details / Info area ──
@@ -163,8 +204,16 @@ class ClassicDownloaderTab(QWidget):
         self.download_button.setEnabled(False)
         self.progress.setValue(0)
         self.status.setText("⏳ Preparing download...")
+        self.downloading_label.setVisible(True)
+        download_types = ["video+audio", "video", "audio"]
+        dtype = download_types[self.type_combo.currentIndex()]
+        audio_format = self.audio_format_combo.currentText()
         worker = _DownloadWorker(
-            self._service(), url, Quality(self.quality_combo.currentText())
+            self._service(),
+            url,
+            Quality(self.quality_combo.currentText()),
+            download_type=dtype,
+            audio_format=audio_format,
         )
         worker.signals.progress.connect(self._on_progress)
         worker.signals.completed.connect(self._download_complete)
@@ -192,6 +241,7 @@ class ClassicDownloaderTab(QWidget):
 
     @Slot(object)
     def _download_complete(self, results: object) -> None:
+        self.downloading_label.setVisible(False)
         self.download_button.setEnabled(True)
         self.progress.setValue(100)
         self.status.setText("✅ Download complete!")
@@ -205,11 +255,12 @@ class ClassicDownloaderTab(QWidget):
                 continue
 
             # Open native Save As dialog for each downloaded file
+            file_type_label = "audio" if src.suffix.lower() in [".mp3", ".wav", ".ogg", ".m4a"] else "video"
             save_path, _ = QFileDialog.getSaveFileName(
                 self,
-                f"Save video — {src.name}",
+                f"Save {file_type_label} — {src.name}",
                 str(Path.home() / src.name),
-                f"Video file (*{src.suffix});;All files (*.*)",
+                f"{file_type_label.title()} file (*{src.suffix});;All files (*.*)",
             )
             if save_path:
                 dest = Path(save_path)
@@ -240,9 +291,89 @@ class ClassicDownloaderTab(QWidget):
         self.details.setPlainText("\n\n".join(lines))
         self.status.setText("ℹ  Metadata loaded")
 
-    @Slot(str)
-    def _failed(self, message: str) -> None:
+    @Slot(str, bool)
+    def _failed(self, message: str, is_auth: bool = False) -> None:
+        self.downloading_label.setVisible(False)
         self.download_button.setEnabled(True)
         self.status.setText(f"❌ {message}")
-        QMessageBox.critical(self, "Operation failed", message)
+
+        if is_auth and not self.config.cookies_from_browser:
+            self._offer_browser_retry(message)
+        else:
+            QMessageBox.critical(self, "Operation failed", message)
+
+    def _offer_browser_retry(self, original_message: str) -> None:
+        """Show a dialog that lets the user retry instantly with browser cookies."""
+        # Build buttons for browsers that are commonly installed
+        available_browsers = [(label, key) for label, key in BROWSER_CHOICES if key is not None]
+
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Authentication required")
+        msg.setIcon(QMessageBox.Icon.Warning)
+        msg.setText(
+            "<b>This video requires login.</b><br><br>"
+            "Retry automatically using cookies from your browser?"
+        )
+        msg.setInformativeText(
+            "Choose the browser you are logged in to:"
+        )
+
+        # Add one button per browser + cancel
+        browser_buttons: dict[object, str] = {}
+        for label, key in available_browsers:
+            btn = msg.addButton(label, QMessageBox.ButtonRole.AcceptRole)
+            browser_buttons[btn] = key
+        msg.addButton("Manual setup (Settings tab)", QMessageBox.ButtonRole.HelpRole)
+        msg.addButton(QMessageBox.StandardButton.Cancel)
+
+        msg.exec()
+        clicked = msg.clickedButton()
+
+        if clicked in browser_buttons:
+            browser_key = browser_buttons[clicked]
+            self._retry_with_browser(browser_key)
+        elif clicked and clicked.text() == "Manual setup (Settings tab)":
+            # Switch to settings tab so user can configure
+            parent = self.parent()
+            while parent and not hasattr(parent, "_tabs"):
+                parent = parent.parent()
+            if parent:
+                settings_index = parent._tabs.indexOf(parent._settings)  # noqa: SLF001
+                parent._tabs.setCurrentIndex(settings_index)
+
+    def _retry_with_browser(self, browser_key: str) -> None:
+        """Re-run the download with cookies injected from the given browser."""
+        url = self.url_edit.text().strip()
+        if not url:
+            return
+        # Create a one-shot config copy with browser cookies enabled
+        retry_config = self.config.model_copy(
+            update={"cookies_from_browser": browser_key, "cookies_file": None}
+        )
+        self.download_button.setEnabled(False)
+        self.progress.setValue(0)
+        self.status.setText(f"⏳ Retrying with {browser_key.title()} cookies…")
+        self.downloading_label.setVisible(True)
+
+        download_types = ["video+audio", "video", "audio"]
+        dtype = download_types[self.type_combo.currentIndex()]
+        audio_format = self.audio_format_combo.currentText()
+        worker = _DownloadWorker(
+            DownloadService(retry_config),
+            url,
+            Quality(self.quality_combo.currentText()),
+            download_type=dtype,
+            audio_format=audio_format,
+        )
+        worker.signals.progress.connect(self._on_progress)
+        worker.signals.completed.connect(self._download_complete)
+        worker.signals.failed.connect(self._failed)
+        self.thread_pool.start(worker)
+
+    @Slot(int)
+    def _on_type_changed(self, index: int) -> None:
+        """Toggle the visibility of audio format options based on download type choice."""
+        is_audio = index == 2
+        self.audio_format_label.setVisible(is_audio)
+        self.audio_format_combo.setVisible(is_audio)
 

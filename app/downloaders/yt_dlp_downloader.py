@@ -53,6 +53,29 @@ FORMAT_SELECTORS: dict[Quality, str] = {
     Quality.AUDIO: "ba/b",
 }
 
+VIDEO_ONLY_SELECTORS: dict[Quality, str] = {
+    Quality.BEST: (
+        f"{COMPATIBLE_VIDEO}/"
+        "bv*[ext=mp4]/bv*/b"
+    ),
+    Quality.P1080: (
+        f"{COMPATIBLE_VIDEO}[height<=1080]/"
+        "bv*[ext=mp4][height<=1080]/"
+        "bv*[height<=1080]/b[height<=1080]"
+    ),
+    Quality.P720: (
+        f"{COMPATIBLE_VIDEO}[height<=720]/"
+        "bv*[ext=mp4][height<=720]/"
+        "bv*[height<=720]/b[height<=720]"
+    ),
+    Quality.P480: (
+        f"{COMPATIBLE_VIDEO}[height<=480]/"
+        "bv*[ext=mp4][height<=480]/"
+        "bv*[height<=480]/b[height<=480]"
+    ),
+    Quality.AUDIO: "ba/b",
+}
+
 
 class _YtDlpLogger:
     """Bridge yt-dlp's logger contract to standard logging."""
@@ -98,6 +121,8 @@ class YtDlpDownloader(BaseDownloader):
         url: str,
         quality: str,
         *,
+        download_type: str = "video+audio",
+        audio_format: str = "mp3",
         playlist: bool = False,
         progress_callback: ProgressCallback | None = None,
     ) -> list[DownloadResult]:
@@ -107,21 +132,32 @@ class YtDlpDownloader(BaseDownloader):
         except ValueError as exc:
             raise DownloadFailedError(f"Unsupported quality: {quality}") from exc
 
+        is_audio = download_type == "audio" or preset is Quality.AUDIO
+        is_video_only = download_type == "video"
+
+        if is_audio:
+            format_spec = "ba/b"
+        elif is_video_only:
+            format_spec = VIDEO_ONLY_SELECTORS.get(preset, FORMAT_SELECTORS[preset])
+        else:
+            format_spec = FORMAT_SELECTORS[preset]
+
         options = self._base_options(playlist=playlist)
         options.update(
             {
-                "format": FORMAT_SELECTORS[preset],
+                "format": format_spec,
                 "continuedl": True,
                 "nopart": False,
                 "overwrites": False,
                 "progress_hooks": [self._progress_hook(progress_callback)],
             }
         )
-        if preset is Quality.AUDIO:
+        if is_audio:
+            codec = "vorbis" if audio_format == "ogg" else audio_format
             options["postprocessors"] = [
                 {
                     "key": "FFmpegExtractAudio",
-                    "preferredcodec": "mp3",
+                    "preferredcodec": codec,
                     "preferredquality": "192",
                 }
             ]
@@ -162,11 +198,16 @@ class YtDlpDownloader(BaseDownloader):
             "windowsfilenames": True,
             "restrictfilenames": False,
             "merge_output_format": "mp4",
+            "js_runtimes": {"node": {}, "deno": {}, "quickjs": {}, "bun": {}},
+            "remote_components": {"ejs:github"},
         }
         ffmpeg_path = resolve_ffmpeg(self.config.ffmpeg_path)
         if ffmpeg_path:
             options["ffmpeg_location"] = str(ffmpeg_path)
-        if self.config.cookies_file:
+        # Browser cookies take priority (always fresh); fall back to manual file.
+        if self.config.cookies_from_browser:
+            options["cookiesfrombrowser"] = (self.config.cookies_from_browser,)
+        elif self.config.cookies_file:
             options["cookiefile"] = str(self.config.cookies_file)
         return options
 

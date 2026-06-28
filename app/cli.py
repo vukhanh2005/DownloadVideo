@@ -20,7 +20,7 @@ from rich.table import Table
 
 from app.config.settings import load_config
 from app.core.exceptions import VideoDownloaderError
-from app.models.download import DownloadProgress
+from app.models.download import AudioFormat, DownloadProgress, DownloadType
 from app.models.quality import Quality
 from app.models.video import VideoInfo
 from app.services.download_service import DownloadService
@@ -83,6 +83,8 @@ def _run_download(
     url: str,
     quality: Quality,
     *,
+    download_type: str = "video+audio",
+    audio_format: str = "mp3",
     include_playlist: bool,
 ) -> None:
     columns = (
@@ -99,21 +101,36 @@ def _run_download(
         results = service.download(
             url,
             quality,
+            download_type=download_type,
+            audio_format=audio_format,
             playlist=include_playlist,
             progress_callback=callback,
         )
-        progress.update(task_id, completed=100, description="Complete")
+        task = next((t for t in progress.tasks if t.id == task_id), None)
+        if task and task.total:
+            progress.update(task_id, completed=task.total, description="Complete")
+        else:
+            progress.update(task_id, completed=100, description="Complete")
     for result in results:
         console.print(f"[green]Saved:[/green] {result.path}")
 
 
 def _rich_callback(progress: Progress, task_id: TaskID):
     def callback(event: DownloadProgress) -> None:
-        progress.update(
-            task_id,
-            completed=event.percent,
-            description=Path(event.filename).name if event.filename else "Downloading",
-        )
+        if event.total_bytes and event.total_bytes > 0:
+            progress.update(
+                task_id,
+                completed=event.downloaded_bytes,
+                total=event.total_bytes,
+                description=Path(event.filename).name if event.filename else "Downloading",
+            )
+        else:
+            progress.update(
+                task_id,
+                completed=event.percent,
+                total=100,
+                description=Path(event.filename).name if event.filename else "Downloading",
+            )
 
     return callback
 
@@ -145,6 +162,14 @@ def download(
         str | None,
         typer.Option("--quality", "-q", help="best, 1080p, 720p, 480p, or audio"),
     ] = None,
+    download_type: Annotated[
+        DownloadType,
+        typer.Option("--type", "-t", help="video+audio, video, or audio"),
+    ] = DownloadType.VIDEO_AUDIO,
+    audio_format: Annotated[
+        AudioFormat,
+        typer.Option("--audio-format", "-a", help="mp3, wav, or ogg"),
+    ] = AudioFormat.MP3,
     config: Annotated[
         Path, typer.Option("--config", help="Path to config.yaml")
     ] = Path("config.yaml"),
@@ -153,7 +178,14 @@ def download(
     """Download a single video."""
     try:
         service = _service(config, verbose)
-        _run_download(service, url, _quality(quality, service), include_playlist=False)
+        _run_download(
+            service,
+            url,
+            _quality(quality, service),
+            download_type=download_type.value,
+            audio_format=audio_format.value,
+            include_playlist=False,
+        )
     except VideoDownloaderError as exc:
         console.print(f"[red]Download failed:[/red] {exc}")
         raise typer.Exit(code=1) from None
@@ -165,6 +197,14 @@ def playlist(
     quality: Annotated[
         str | None, typer.Option("--quality", "-q", help="Download quality")
     ] = None,
+    download_type: Annotated[
+        DownloadType,
+        typer.Option("--type", "-t", help="video+audio, video, or audio"),
+    ] = DownloadType.VIDEO_AUDIO,
+    audio_format: Annotated[
+        AudioFormat,
+        typer.Option("--audio-format", "-a", help="mp3, wav, or ogg"),
+    ] = AudioFormat.MP3,
     metadata_only: Annotated[
         bool,
         typer.Option("--metadata-only", help="Only list playlist entries"),
@@ -177,7 +217,14 @@ def playlist(
         if metadata_only:
             console.print(_metadata_table(service.get_info(url, playlist=True)))
             return
-        _run_download(service, url, _quality(quality, service), include_playlist=True)
+        _run_download(
+            service,
+            url,
+            _quality(quality, service),
+            download_type=download_type.value,
+            audio_format=audio_format.value,
+            include_playlist=True,
+        )
     except VideoDownloaderError as exc:
         console.print(f"[red]Playlist failed:[/red] {exc}")
         raise typer.Exit(code=1) from None
@@ -189,6 +236,14 @@ def batch(
         Path, typer.Argument(help="Text file containing one URL per line")
     ] = Path("urls.txt"),
     quality: Annotated[str | None, typer.Option("--quality", "-q")] = None,
+    download_type: Annotated[
+        DownloadType,
+        typer.Option("--type", "-t", help="video+audio, video, or audio"),
+    ] = DownloadType.VIDEO_AUDIO,
+    audio_format: Annotated[
+        AudioFormat,
+        typer.Option("--audio-format", "-a", help="mp3, wav, or ogg"),
+    ] = AudioFormat.MP3,
     sequential: Annotated[
         bool, typer.Option("--sequential", help="Disable parallel downloads")
     ] = False,
@@ -205,6 +260,8 @@ def batch(
         result = service.download_many(
             urls,
             _quality(quality, service),
+            download_type=download_type.value,
+            audio_format=audio_format.value,
             parallel=not sequential,
         )
     except OSError as exc:

@@ -22,9 +22,22 @@ class AppConfig(BaseModel):
     concurrent_fragments: int = Field(default=4, ge=1, le=16)
     output_template: str = "%(title).60B [%(id)s].%(ext)s"
     cookies_file: Path | None = None
+    cookies_from_browser: str | None = None
     ffmpeg_path: Path | None = None
     log_path: Path = Path("logs/app.log")
     browser_log_path: Path = Path("logs/browser.log")
+
+    @field_validator("cookies_from_browser", mode="before")
+    @classmethod
+    def normalise_browser(cls, value: object) -> str | None:
+        """Normalise and validate the browser name."""
+        if value in (None, ""):
+            return None
+        name = str(value).strip().lower()
+        valid = {"chrome", "chromium", "firefox", "edge", "brave", "opera", "vivaldi", "safari"}
+        if name not in valid:
+            raise ValueError(f"Unsupported browser '{name}'. Choose from: {', '.join(sorted(valid))}")
+        return name
 
     @field_validator(
         "download_path",

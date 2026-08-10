@@ -6,9 +6,9 @@ import os
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QApplication, QMainWindow, QTabWidget
+from PySide6.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget
 
 from app.config.settings import AppConfig, load_config
 from app.gui.browser_tab import BrowserDownloaderTab
@@ -293,6 +293,8 @@ class MainWindow(QMainWindow):
 
     def __init__(self, config: AppConfig, config_path: Path = Path("config.yaml")) -> None:
         super().__init__()
+        self.config = config
+        self.config_path = config_path
         self.setWindowTitle("🎬 Video Downloader")
         self.resize(740, 520)
         self.setMinimumSize(560, 420)
@@ -301,31 +303,56 @@ class MainWindow(QMainWindow):
         self._tabs.setDocumentMode(True)
 
         self._downloader = ClassicDownloaderTab(config)
-        self._browser = BrowserDownloaderTab(config)
-        history = HistoryTab()
+        self._history = HistoryTab()
         self._settings = SettingsTab(config, config_path)
 
+        self._browser: BrowserDownloaderTab | None = None
+        self._browser_placeholder = QWidget()
+
         # Wire download completion to history
-        self._downloader.file_saved.connect(history.add_entry)
-        self._browser.file_saved.connect(history.add_entry)
+        self._downloader.file_saved.connect(self._history.add_entry)
 
         # Wire config changes to live-reload downloader tabs
         self._settings.config_saved.connect(self._on_config_saved)
 
         self._tabs.addTab(self._downloader, "⬇  Download")
-        self._tabs.addTab(self._browser, "🌐  Browser Downloader")
-        self._tabs.addTab(history, "📋  History")
+        self._tabs.addTab(self._browser_placeholder, "🌐  Browser Downloader")
+        self._tabs.addTab(self._history, "📋  History")
         self._tabs.addTab(self._settings, "⚙  Settings")
         self.setCentralWidget(self._tabs)
+
+        self._tabs.currentChanged.connect(self._on_tab_changed)
 
         self.statusBar().showMessage(
             "⚠  Download only media you are authorized to access. DRM is not supported."
         )
 
+        # Pre-initialize heavy Chromium browser tab right after window renders
+        QTimer.singleShot(150, self._ensure_browser_tab)
+
+    def _ensure_browser_tab(self) -> None:
+        """Lazily initialize BrowserDownloaderTab after window has rendered."""
+        if self._browser is not None:
+            return
+        self._browser = BrowserDownloaderTab(self.config)
+        self._browser.file_saved.connect(self._history.add_entry)
+        index = self._tabs.indexOf(self._browser_placeholder)
+        if index != -1:
+            self._tabs.removeTab(index)
+            self._tabs.insertTab(index, self._browser, "🌐  Browser Downloader")
+
+    def _on_tab_changed(self, index: int) -> None:
+        """Ensure Browser tab is loaded when user switches to it."""
+        widget = self._tabs.widget(index)
+        if widget == self._browser_placeholder or widget == self._browser:
+            self._ensure_browser_tab()
+
     def _on_config_saved(self, new_config: AppConfig) -> None:
         """Propagate new config to the downloader tabs without restart."""
+        self.config = new_config
         self._downloader.config = new_config
-        self._browser.config = new_config
+        if self._browser:
+            self._browser.config = new_config
         self.statusBar().showMessage(
             "✅  Settings saved — new downloads will use the updated configuration.",
             4000,

@@ -1,4 +1,4 @@
-"""PyInstaller specification for the compact Windows desktop application."""
+"""PyInstaller specification for optimized Windows desktop application."""
 
 analysis = Analysis(
     ["desktop.py"],
@@ -25,13 +25,29 @@ analysis = Analysis(
         "shellingham",
         "typer",
         "wheel",
+        "tkinter",
+        "unittest",
+        "PySide6.QtQml",
+        "PySide6.QtQuick",
+        "PySide6.QtQuickWidgets",
+        "PySide6.Qt3D",
+        "PySide6.QtSensors",
+        "PySide6.QtPositioning",
+        "PySide6.QtMultimedia",
+        "PySide6.QtBluetooth",
+        "PySide6.QtNfc",
+        "PySide6.QtPdf",
+        "PySide6.QtSpatialAudio",
+        "PySide6.QtVirtualKeyboard",
+        "PySide6.QtTest",
     ],
     noarchive=False,
-    optimize=1,
+    optimize=2,
 )
 
 pyz = PYZ(analysis.pure)
 
+# Single file EXE (packed)
 executable = EXE(
     pyz,
     analysis.scripts,
@@ -51,4 +67,33 @@ executable = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+)
+
+# Folder build (instant launch, no unzipping to TEMP)
+exe_dir = EXE(
+    pyz,
+    analysis.scripts,
+    [],
+    exclude_binaries=True,
+    name="VideoDownloader",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    console=False,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+)
+
+coll = COLLECT(
+    exe_dir,
+    analysis.binaries,
+    analysis.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name="VideoDownloader_Folder",
 )

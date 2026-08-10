@@ -32,6 +32,7 @@ from app.gui.settings_tab import BROWSER_CHOICES
 from app.models.download import DownloadProgress
 from app.models.quality import Quality
 from app.services.download_service import DownloadService
+from app.utils import get_initial_save_dir, set_last_save_dir
 from app.utils.formatting import format_bytes, format_duration
 
 # Auth-related keywords that trigger the cookie-retry dialog
@@ -256,14 +257,16 @@ class ClassicDownloaderTab(QWidget):
 
             # Open native Save As dialog for each downloaded file
             file_type_label = "audio" if src.suffix.lower() in [".mp3", ".wav", ".ogg", ".m4a"] else "video"
+            initial_dir = get_initial_save_dir(self.config)
             save_path, _ = QFileDialog.getSaveFileName(
                 self,
                 f"Save {file_type_label} — {src.name}",
-                str(Path.home() / src.name),
+                str(initial_dir / src.name),
                 f"{file_type_label.title()} file (*{src.suffix});;All files (*.*)",
             )
             if save_path:
                 dest = Path(save_path)
+                set_last_save_dir(dest)
                 if dest != src:
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     shutil.move(str(src), str(dest))

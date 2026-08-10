@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 import yaml
@@ -24,7 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.config.settings import AppConfig, load_config
-from app.models.quality import Quality
+from app.utils import get_initial_save_dir, set_last_save_dir
 
 # (label shown in UI, yt-dlp browser key)
 BROWSER_CHOICES: list[tuple[str, str | None]] = [
@@ -87,18 +86,25 @@ class _PathRow(QWidget):
         self.edit.setText(value)
 
     def _browse(self) -> None:
+        current = self.edit.text().strip()
+        if current and Path(current).exists():
+            initial_dir = Path(current) if self._dir else Path(current).parent
+        else:
+            initial_dir = get_initial_save_dir()
+
         if self._dir:
             path = QFileDialog.getExistingDirectory(
-                self, self._dialog_title, self.edit.text() or str(Path.home())
+                self, self._dialog_title, str(initial_dir)
             )
         else:
             path, _ = QFileDialog.getOpenFileName(
                 self,
                 self._dialog_title,
-                self.edit.text() or str(Path.home()),
+                str(initial_dir),
                 self._file_filter,
             )
         if path:
+            set_last_save_dir(path)
             self.edit.setText(path)
 
 

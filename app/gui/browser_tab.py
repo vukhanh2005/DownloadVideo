@@ -48,6 +48,7 @@ from app.browser.models import (
 from app.browser.player_capture import JWPLAYER_CAPTURE_SCRIPT
 from app.config.settings import AppConfig
 from app.core.exceptions import VideoDownloaderError
+from app.utils import get_initial_save_dir, set_last_save_dir
 from app.utils.formatting import format_bytes
 
 LOGGER = logging.getLogger("browser")
@@ -552,14 +553,16 @@ class BrowserDownloaderTab(QWidget):
         if not src or not src.exists():
             return
 
+        initial_dir = get_initial_save_dir(self.config)
         save_path, _ = QFileDialog.getSaveFileName(
             self,
             f"Save — {src.name}",
-            str(Path.home() / src.name),
+            str(initial_dir / src.name),
             f"Media file (*{src.suffix});;All files (*.*)",
         )
         if save_path:
             dest = Path(save_path)
+            set_last_save_dir(dest)
             if dest != src:
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.move(str(src), str(dest))

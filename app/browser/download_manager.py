@@ -166,16 +166,24 @@ class BrowserDownloadManager:
     def _progress(self, task: _Task, data: dict[str, Any]) -> None:
         if task.pause_requested.is_set() or task.cancel_requested.is_set():
             raise DownloadCancelled("Browser download interrupted")
-        total = data.get("total_bytes") or data.get("total_bytes_estimate")
-        downloaded = int(data.get("downloaded_bytes") or 0)
-        percent = downloaded / total * 100 if total else task.snapshot.percent
+        raw_total = data.get("total_bytes") or data.get("total_bytes_estimate")
+        total = int(round(float(raw_total))) if raw_total is not None else None
+        downloaded = int(round(float(data.get("downloaded_bytes") or 0)))
+        percent = (downloaded / total * 100) if total else task.snapshot.percent
+        if data.get("status") == "finished":
+            percent = 100.0
+        percent = max(0.0, min(float(percent), 100.0))
+        raw_speed = data.get("speed")
+        speed = max(0.0, float(raw_speed)) if raw_speed is not None else None
+        raw_eta = data.get("eta")
+        eta = max(0.0, float(raw_eta)) if raw_eta is not None else None
         self._update(
             task,
-            percent=min(percent, 100),
+            percent=percent,
             downloaded_bytes=downloaded,
             total_bytes=total,
-            speed=data.get("speed"),
-            eta=data.get("eta"),
+            speed=speed,
+            eta=eta,
         )
 
     def _update(self, task: _Task, **changes: Any) -> None:

@@ -80,3 +80,27 @@ def test_cancel_paused_task_removes_partial(config: AppConfig, tmp_path: Path) -
     manager.cancel(task_id)
     assert manager.snapshot(task_id).state is DownloadState.CANCELLED
     assert not partial.exists()
+
+
+def test_progress_with_float_values(config: AppConfig, tmp_path: Path) -> None:
+    """Browser progress hook handles float estimates and formats cleanly."""
+    manager = BrowserDownloadManager(config)
+    with patch.object(manager, "_launch"):
+        task_id = manager.start(_media(), tmp_path)
+    task = manager._tasks[task_id]  # pylint: disable=protected-access
+    manager._progress(  # pylint: disable=protected-access
+        task,
+        {
+            "status": "downloading",
+            "downloaded_bytes": 100.2,
+            "total_bytes_estimate": 1000.8,
+            "speed": 500.5,
+            "eta": 2.0,
+        },
+    )
+    snap = manager.snapshot(task_id)
+    assert snap.downloaded_bytes == 100
+    assert snap.total_bytes == 1001
+    assert snap.speed == 500.5
+    assert snap.eta == 2.0
+    assert snap.percent > 0

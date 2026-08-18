@@ -282,19 +282,25 @@ class YtDlpDownloader(BaseDownloader):
         def hook(data: dict[str, Any]) -> None:
             if callback is None:
                 return
-            total = data.get("total_bytes") or data.get("total_bytes_estimate")
-            downloaded = int(data.get("downloaded_bytes") or 0)
-            percent = min((downloaded / total * 100) if total else 0, 100)
+            raw_total = data.get("total_bytes") or data.get("total_bytes_estimate")
+            total = int(round(float(raw_total))) if raw_total is not None else None
+            downloaded = int(round(float(data.get("downloaded_bytes") or 0)))
+            percent = (downloaded / total * 100) if total else 0.0
             if data.get("status") == "finished":
-                percent = 100
+                percent = 100.0
+            percent = max(0.0, min(float(percent), 100.0))
+            raw_speed = data.get("speed")
+            speed = max(0.0, float(raw_speed)) if raw_speed is not None else None
+            raw_eta = data.get("eta")
+            eta = max(0.0, float(raw_eta)) if raw_eta is not None else None
             callback(
                 DownloadProgress(
                     status=data.get("status", "downloading"),
                     filename=data.get("filename"),
                     downloaded_bytes=downloaded,
                     total_bytes=total,
-                    speed=data.get("speed"),
-                    eta=data.get("eta"),
+                    speed=speed,
+                    eta=eta,
                     percent=percent,
                 )
             )
@@ -304,13 +310,50 @@ class YtDlpDownloader(BaseDownloader):
     @staticmethod
     def _map_error(error: Exception, *, metadata: bool) -> Exception:
         message = str(error)
+        while message.startswith("ERROR: "):
+            message = message[7:].strip()
         lowered = message.lower()
         if any(
-            token in lowered for token in ("private video", "login required", "sign in")
+            token in lowered
+            for token in (
+                "failed to decrypt with dpapi",
+                "dpapi",
+                "app-bound",
+            )
+        ):
+            return DownloadFailedError(
+                "Chrome v127+ App-Bound Encryption prevented direct cookie extraction. "
+                "Export your cookies with 'Get cookies.txt LOCALLY' extension "
+                "and set the cookies_file path in Settings."
+            )
+        if any(
+            token in lowered
+            for token in (
+                "could not copy",
+                "cookie database",
+                "cookies database",
+                "used by another process",
+                "winerror 32",
+            )
+        ):
+            return DownloadFailedError(
+                "Could not access browser cookies because your browser is running. "
+                "Please close your browser (e.g. Chrome, Edge, Firefox) completely "
+                "and try again, or configure a cookies.txt file in Settings."
+            )
+        if any(
+            token in lowered
+            for token in (
+                "private video",
+                "login required",
+                "sign in",
+                "confirm your age",
+                "age-restricted",
+            )
         ):
             return PrivateVideoError(
-                "This video requires authentication. Configure cookies_file with a "
-                "Netscape-format cookies file."
+                "This video is age-restricted or private and requires login cookies. "
+                "Configure a cookies.txt file in Settings tab."
             )
         if any(
             token in lowered

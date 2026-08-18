@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 
 from app.config.settings import AppConfig
 from app.core.exceptions import PrivateVideoError, VideoDownloaderError
+from app.gui.dialogs import BrowserRetryDialog
 from app.gui.settings_tab import BROWSER_CHOICES
 from app.models.download import DownloadProgress
 from app.models.quality import Quality
@@ -298,51 +299,32 @@ class ClassicDownloaderTab(QWidget):
     def _failed(self, message: str, is_auth: bool = False) -> None:
         self.downloading_label.setVisible(False)
         self.download_button.setEnabled(True)
-        self.status.setText(f"❌ {message}")
+
+        clean_msg = message
+        while clean_msg.startswith("ERROR: "):
+            clean_msg = clean_msg[7:].strip()
+
+        self.status.setText(f"❌ {clean_msg}")
 
         if is_auth and not self.config.cookies_from_browser:
-            self._offer_browser_retry(message)
+            self._offer_browser_retry(clean_msg)
         else:
-            QMessageBox.critical(self, "Operation failed", message)
+            QMessageBox.critical(self, "Operation failed", clean_msg)
 
     def _offer_browser_retry(self, original_message: str) -> None:
         """Show a dialog that lets the user retry instantly with browser cookies."""
-        # Build buttons for browsers that are commonly installed
-        available_browsers = [(label, key) for label, key in BROWSER_CHOICES if key is not None]
-
-        msg = QMessageBox(self)
-        msg.setWindowTitle("Authentication required")
-        msg.setIcon(QMessageBox.Icon.Warning)
-        msg.setText(
-            "<b>This video requires login.</b><br><br>"
-            "Retry automatically using cookies from your browser?"
-        )
-        msg.setInformativeText(
-            "Choose the browser you are logged in to:"
-        )
-
-        # Add one button per browser + cancel
-        browser_buttons: dict[object, str] = {}
-        for label, key in available_browsers:
-            btn = msg.addButton(label, QMessageBox.ButtonRole.AcceptRole)
-            browser_buttons[btn] = key
-        msg.addButton("Manual setup (Settings tab)", QMessageBox.ButtonRole.HelpRole)
-        msg.addButton(QMessageBox.StandardButton.Cancel)
-
-        msg.exec()
-        clicked = msg.clickedButton()
-
-        if clicked in browser_buttons:
-            browser_key = browser_buttons[clicked]
-            self._retry_with_browser(browser_key)
-        elif clicked and clicked.text() == "Manual setup (Settings tab)":
-            # Switch to settings tab so user can configure
-            parent = self.parent()
-            while parent and not hasattr(parent, "_tabs"):
-                parent = parent.parent()
-            if parent:
-                settings_index = parent._tabs.indexOf(parent._settings)  # noqa: SLF001
-                parent._tabs.setCurrentIndex(settings_index)
+        dialog = BrowserRetryDialog(self)
+        if dialog.exec() == BrowserRetryDialog.DialogCode.Accepted:
+            if dialog.selected_browser:
+                self._retry_with_browser(dialog.selected_browser)
+            elif dialog.open_settings:
+                # Switch to settings tab so user can configure
+                parent = self.parent()
+                while parent and not hasattr(parent, "_tabs"):
+                    parent = parent.parent()
+                if parent:
+                    settings_index = parent._tabs.indexOf(parent._settings)  # noqa: SLF001
+                    parent._tabs.setCurrentIndex(settings_index)
 
     def _retry_with_browser(self, browser_key: str) -> None:
         """Re-run the download with cookies injected from the given browser."""

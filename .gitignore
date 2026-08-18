@@ -13,3 +13,10 @@ build/
 *.spec.bak
 config.local.yaml
 cookies.txt
+Videos/
+*.mp4
+*.mkv
+*.webm
+*.m4a
+*.mp3
+*.wav

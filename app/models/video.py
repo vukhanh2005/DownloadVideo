@@ -1,6 +1,7 @@
 """Video metadata models."""
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Any
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.platform import Platform
 
@@ -17,6 +18,16 @@ class VideoFormat(BaseModel):
     audio_only: bool = False
     filesize: int | None = Field(default=None, ge=0)
     note: str | None = None
+
+    @field_validator("filesize", mode="before")
+    @classmethod
+    def _coerce_filesize(cls, v: Any) -> int | None:
+        if v is None:
+            return None
+        try:
+            return max(0, int(round(float(v))))
+        except (ValueError, TypeError):
+            return None
 
 
 class VideoInfo(BaseModel):
@@ -35,3 +46,13 @@ class VideoInfo(BaseModel):
     formats: tuple[VideoFormat, ...] = ()
     playlist_title: str | None = None
     playlist_index: int | None = None
+
+    @field_validator("estimated_size", mode="before")
+    @classmethod
+    def _coerce_estimated_size(cls, v: Any) -> int | None:
+        if v is None:
+            return None
+        try:
+            return max(0, int(round(float(v))))
+        except (ValueError, TypeError):
+            return None

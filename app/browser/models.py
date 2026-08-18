@@ -5,7 +5,8 @@ from __future__ import annotations
 from enum import StrEnum
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Any
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class BrowserMediaType(StrEnum):
@@ -44,6 +45,16 @@ class BrowserMedia(BaseModel):
     cookies: str | None = None
     is_live: bool = False
 
+    @field_validator("size", mode="before")
+    @classmethod
+    def _coerce_size(cls, v: Any) -> int | None:
+        if v is None:
+            return None
+        try:
+            return max(0, int(round(float(v))))
+        except (ValueError, TypeError):
+            return None
+
 
 class HlsVariant(BaseModel):
     """One selectable stream in an HLS master playlist."""
@@ -54,6 +65,16 @@ class HlsVariant(BaseModel):
     quality: str
     bandwidth: int | None = Field(default=None, ge=0)
     codecs: str | None = None
+
+    @field_validator("bandwidth", mode="before")
+    @classmethod
+    def _coerce_bandwidth(cls, v: Any) -> int | None:
+        if v is None:
+            return None
+        try:
+            return max(0, int(round(float(v))))
+        except (ValueError, TypeError):
+            return None
 
 
 class BrowserDownloadSnapshot(BaseModel):
@@ -72,3 +93,43 @@ class BrowserDownloadSnapshot(BaseModel):
     eta: float | None = Field(default=None, ge=0)
     output_path: Path | None = None
     error: str | None = None
+
+    @field_validator("downloaded_bytes", mode="before")
+    @classmethod
+    def _coerce_downloaded_bytes(cls, v: Any) -> int:
+        if v is None:
+            return 0
+        try:
+            return max(0, int(round(float(v))))
+        except (ValueError, TypeError):
+            return 0
+
+    @field_validator("total_bytes", mode="before")
+    @classmethod
+    def _coerce_total_bytes(cls, v: Any) -> int | None:
+        if v is None:
+            return None
+        try:
+            return max(0, int(round(float(v))))
+        except (ValueError, TypeError):
+            return None
+
+    @field_validator("percent", mode="before")
+    @classmethod
+    def _coerce_percent(cls, v: Any) -> float:
+        try:
+            val = float(v)
+            return max(0.0, min(val, 100.0))
+        except (ValueError, TypeError):
+            return 0.0
+
+    @field_validator("speed", "eta", mode="before")
+    @classmethod
+    def _coerce_float(cls, v: Any) -> float | None:
+        if v is None:
+            return None
+        try:
+            val = float(v)
+            return max(0.0, val)
+        except (ValueError, TypeError):
+            return None

@@ -1,10 +1,12 @@
-"""PyInstaller specification for optimized Windows desktop application."""
+from PyInstaller.utils.hooks import collect_data_files
+
+datas = [("config.yaml", ".")] + collect_data_files("imageio_ffmpeg")
 
 analysis = Analysis(
     ["desktop.py"],
     pathex=[],
     binaries=[],
-    datas=[("config.yaml", ".")],
+    datas=datas,
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

@@ -170,6 +170,10 @@ def download(
         AudioFormat,
         typer.Option("--audio-format", "-a", help="mp3, wav, or ogg"),
     ] = AudioFormat.MP3,
+    output_dir: Annotated[
+        Path | None,
+        typer.Option("--output-dir", "-o", help="Custom output directory"),
+    ] = None,
     config: Annotated[
         Path, typer.Option("--config", help="Path to config.yaml")
     ] = Path("config.yaml"),
@@ -178,6 +182,9 @@ def download(
     """Download a single video."""
     try:
         service = _service(config, verbose)
+        if output_dir:
+            service.config.download_path = output_dir
+            service.config.prepare_directories()
         _run_download(
             service,
             url,
@@ -205,6 +212,10 @@ def playlist(
         AudioFormat,
         typer.Option("--audio-format", "-a", help="mp3, wav, or ogg"),
     ] = AudioFormat.MP3,
+    output_dir: Annotated[
+        Path | None,
+        typer.Option("--output-dir", "-o", help="Custom output directory"),
+    ] = None,
     metadata_only: Annotated[
         bool,
         typer.Option("--metadata-only", help="Only list playlist entries"),
@@ -214,6 +225,9 @@ def playlist(
     """List or download all supported playlist entries."""
     try:
         service = _service(config)
+        if output_dir:
+            service.config.download_path = output_dir
+            service.config.prepare_directories()
         if metadata_only:
             console.print(_metadata_table(service.get_info(url, playlist=True)))
             return
@@ -244,6 +258,10 @@ def batch(
         AudioFormat,
         typer.Option("--audio-format", "-a", help="mp3, wav, or ogg"),
     ] = AudioFormat.MP3,
+    output_dir: Annotated[
+        Path | None,
+        typer.Option("--output-dir", "-o", help="Custom output directory"),
+    ] = None,
     sequential: Annotated[
         bool, typer.Option("--sequential", help="Disable parallel downloads")
     ] = False,
@@ -257,6 +275,9 @@ def batch(
             if line.strip() and not line.lstrip().startswith("#")
         ]
         service = _service(config)
+        if output_dir:
+            service.config.download_path = output_dir
+            service.config.prepare_directories()
         result = service.download_many(
             urls,
             _quality(quality, service),

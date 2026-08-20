@@ -9,7 +9,7 @@ description = "CLI and PySide6 browser GUI for downloading authorized media"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "yt-dlp>=2026.7.4",
+    "yt-dlp>=2026.8.19",
     "typer==0.26.7",
     "rich==14.2.0",
     "pydantic==2.13.4",

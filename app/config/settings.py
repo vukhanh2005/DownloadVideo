@@ -55,10 +55,39 @@ class AppConfig(BaseModel):
         return Path(value).expanduser()
 
     def prepare_directories(self) -> None:
-        """Create writable runtime directories."""
-        self.download_path.mkdir(parents=True, exist_ok=True)
-        self.log_path.parent.mkdir(parents=True, exist_ok=True)
-        self.browser_log_path.parent.mkdir(parents=True, exist_ok=True)
+        """Create writable runtime directories with automatic user fallback."""
+        from app.utils.path_helper import get_app_data_dir, is_directory_writable
+
+        # 1. Download path fallback
+        try:
+            self.download_path.mkdir(parents=True, exist_ok=True)
+            if not is_directory_writable(self.download_path):
+                raise PermissionError("Download path is not writable")
+        except (PermissionError, OSError):
+            fallback_dl = Path.home() / "Downloads"
+            fallback_dl.mkdir(parents=True, exist_ok=True)
+            self.download_path = fallback_dl
+
+        # 2. Log path fallback
+        try:
+            self.log_path.parent.mkdir(parents=True, exist_ok=True)
+            if not is_directory_writable(self.log_path.parent):
+                raise PermissionError("Log path is not writable")
+        except (PermissionError, OSError):
+            fallback_logs = get_app_data_dir() / "logs"
+            fallback_logs.mkdir(parents=True, exist_ok=True)
+            self.log_path = fallback_logs / "app.log"
+
+        # 3. Browser log path fallback
+        try:
+            self.browser_log_path.parent.mkdir(parents=True, exist_ok=True)
+            if not is_directory_writable(self.browser_log_path.parent):
+                raise PermissionError("Browser log path is not writable")
+        except (PermissionError, OSError):
+            fallback_logs = get_app_data_dir() / "logs"
+            fallback_logs.mkdir(parents=True, exist_ok=True)
+            self.browser_log_path = fallback_logs / "browser.log"
+
 
 
 def load_config(path: Path | str = "config.yaml") -> AppConfig:

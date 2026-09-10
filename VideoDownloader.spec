@@ -1,6 +1,6 @@
 from PyInstaller.utils.hooks import collect_data_files
 
-datas = [("config.yaml", ".")] + collect_data_files("imageio_ffmpeg")
+datas = [("assets", "assets"), ("config.yaml", ".")] + collect_data_files("imageio_ffmpeg")
 
 analysis = Analysis(
     ["desktop.py"],
@@ -69,6 +69,7 @@ executable = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon="assets/icon.ico",
 )
 
 # Folder build (instant launch, no unzipping to TEMP)
@@ -88,6 +89,7 @@ exe_dir = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon="assets/icon.ico",
 )
 
 coll = COLLECT(

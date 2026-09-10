@@ -52,3 +52,22 @@ def test_ffmpeg_path_is_loaded(tmp_path: Path) -> None:
     path = tmp_path / "config.yaml"
     path.write_text("ffmpeg_path: tools/ffmpeg.exe\n", encoding="utf-8")
     assert load_config(path).ffmpeg_path == Path("tools/ffmpeg.exe")
+
+
+def test_prepare_directories_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Read-only download or log path falls back to user directories."""
+    from unittest.mock import patch
+    from app.config.settings import AppConfig
+
+    config = AppConfig(
+        download_path=tmp_path / "read_only_dl",
+        log_path=tmp_path / "read_only_logs" / "app.log",
+        browser_log_path=tmp_path / "read_only_browser" / "browser.log",
+    )
+
+    with patch("app.utils.path_helper.is_directory_writable", return_value=False):
+        config.prepare_directories()
+        assert config.download_path.exists()
+        assert config.log_path.parent.exists()
+        assert config.browser_log_path.parent.exists()
+

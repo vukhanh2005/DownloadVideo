@@ -7,15 +7,18 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QAction, QFont, QIcon
 from PySide6.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget
 
 from app.config.settings import AppConfig, load_config
 from app.gui.browser_tab import BrowserDownloaderTab
 from app.gui.classic_tab import ClassicDownloaderTab
+from app.gui.dialogs import AboutDialog
 from app.gui.history_tab import HistoryTab
 from app.gui.settings_tab import SettingsTab
 from app.utils.logging import configure_browser_logging, configure_logging
+from app.utils.path_helper import get_asset_path
+
 
 DARK_STYLESHEET = """
 /* ── Global ── */
@@ -285,6 +288,44 @@ QToolTip {
     padding: 4px 8px;
     font-size: 12px;
 }
+
+/* ── Menu Bar ── */
+QMenuBar {
+    background-color: #121422;
+    color: #c0c6d6;
+    border-bottom: 1px solid #1e2030;
+    padding: 2px 6px;
+    font-size: 12px;
+}
+QMenuBar::item {
+    background: transparent;
+    padding: 5px 10px;
+    border-radius: 4px;
+}
+QMenuBar::item:selected {
+    background-color: #1e2030;
+    color: #ffffff;
+}
+QMenu {
+    background-color: #181a2a;
+    color: #e0e0e0;
+    border: 1px solid #2a2d40;
+    border-radius: 6px;
+    padding: 4px;
+}
+QMenu::item {
+    padding: 6px 22px;
+    border-radius: 4px;
+}
+QMenu::item:selected {
+    background-color: #e94560;
+    color: #ffffff;
+}
+QMenu::separator {
+    height: 1px;
+    background: #2a2d40;
+    margin: 4px 8px;
+}
 """
 
 
@@ -295,9 +336,14 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.config = config
         self.config_path = config_path
-        self.setWindowTitle("🎬 Video Downloader")
-        self.resize(740, 520)
-        self.setMinimumSize(560, 420)
+        self.setWindowTitle("Video Downloader")
+        self.resize(960, 640)
+        self.setMinimumSize(720, 480)
+
+        # Set Window Icon
+        icon_path = get_asset_path("icon.png")
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
 
         self._tabs = QTabWidget()
         self._tabs.setDocumentMode(True)
@@ -323,12 +369,59 @@ class MainWindow(QMainWindow):
 
         self._tabs.currentChanged.connect(self._on_tab_changed)
 
+        self._build_menu()
+
         self.statusBar().showMessage(
             "⚠  Download only media you are authorized to access. DRM is not supported."
         )
 
         # Pre-initialize heavy Chromium browser tab right after window renders
         QTimer.singleShot(150, self._ensure_browser_tab)
+
+    def _build_menu(self) -> None:
+        """Create standard application menu bar."""
+        menubar = self.menuBar()
+
+        # File Menu
+        file_menu = menubar.addMenu("&File")
+
+        paste_action = file_menu.addAction("📋 Paste URL")
+        paste_action.setShortcut("Ctrl+V")
+        paste_action.triggered.connect(self._downloader._paste_clipboard)
+
+        open_dl_action = file_menu.addAction("📁 Open Downloads Folder")
+        open_dl_action.setShortcut("Ctrl+O")
+        open_dl_action.triggered.connect(self._open_downloads_folder)
+
+        open_logs_action = file_menu.addAction("📝 Open Logs Folder")
+        open_logs_action.triggered.connect(self._open_logs_folder)
+
+        file_menu.addSeparator()
+
+        exit_action = file_menu.addAction("❌ Exit")
+        exit_action.setShortcut("Ctrl+Q")
+        exit_action.triggered.connect(self.close)
+
+        # Help Menu
+        help_menu = menubar.addMenu("&Help")
+        about_action = help_menu.addAction("ℹ️ About Video Downloader")
+        about_action.setShortcut("F1")
+        about_action.triggered.connect(self._show_about)
+
+    def _open_downloads_folder(self) -> None:
+        from pathlib import Path
+        dl_dir = Path(self.config.download_path).expanduser().resolve()
+        dl_dir.mkdir(parents=True, exist_ok=True)
+        os.startfile(str(dl_dir))
+
+    def _open_logs_folder(self) -> None:
+        from app.utils.path_helper import get_safe_log_dir
+        log_dir = get_safe_log_dir()
+        os.startfile(str(log_dir))
+
+    def _show_about(self) -> None:
+        dlg = AboutDialog(config=self.config, parent=self)
+        dlg.exec()
 
     def _ensure_browser_tab(self) -> None:
         """Lazily initialize BrowserDownloaderTab after window has rendered."""
@@ -362,6 +455,14 @@ class MainWindow(QMainWindow):
 def launch_gui(config_path: Path = Path("config.yaml")) -> None:  # noqa: B008
     """Create and run the PySide6 desktop application."""
 
+    # Explicit Windows AppUserModelID for Taskbar icon grouping
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("NVK.VideoDownloader.1.0")
+        except Exception:
+            pass
+
     config = load_config(config_path)
     configure_logging(config.log_path)
     configure_browser_logging(config.browser_log_path)
@@ -372,6 +473,11 @@ def launch_gui(config_path: Path = Path("config.yaml")) -> None:  # noqa: B008
     application.setAttribute(Qt.ApplicationAttribute.AA_DontShowIconsInMenus, False)
     application.setStyleSheet(DARK_STYLESHEET)
 
+    # Set icon for the entire application
+    icon_path = get_asset_path("icon.png")
+    if icon_path.exists():
+        application.setWindowIcon(QIcon(str(icon_path)))
+
     # Set a premium font globally
     font = QFont("Segoe UI", 10)
     font.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
@@ -380,3 +486,4 @@ def launch_gui(config_path: Path = Path("config.yaml")) -> None:  # noqa: B008
     window = MainWindow(config, config_path)
     window.show()
     application.exec()
+

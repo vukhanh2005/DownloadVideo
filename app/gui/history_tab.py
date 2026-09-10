@@ -21,7 +21,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.utils.path_helper import get_history_file_path
+
 HISTORY_FILE = Path("downloads/history.json")
+
+
+def _get_history_path() -> Path:
+    return get_history_file_path()
 
 
 class HistoryTab(QWidget):
@@ -102,9 +108,10 @@ class HistoryTab(QWidget):
 
     def _load(self) -> None:
         """Load history from JSON file."""
-        if HISTORY_FILE.exists():
+        path = _get_history_path()
+        if path.exists():
             try:
-                data = json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
+                data = json.loads(path.read_text(encoding="utf-8"))
                 if isinstance(data, list):
                     self._entries = data
             except (json.JSONDecodeError, OSError):
@@ -113,11 +120,13 @@ class HistoryTab(QWidget):
 
     def _save(self) -> None:
         """Persist history to JSON file."""
-        HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-        HISTORY_FILE.write_text(
+        path = _get_history_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
             json.dumps(self._entries, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+
 
     def _refresh_table(self) -> None:
         """Rebuild table rows from entries (newest first)."""

@@ -119,8 +119,20 @@ Ví dụ sử dụng:
 can thiệp cơ chế bảo vệ nội dung. HLS có dấu hiệu Widevine, FairPlay, PlayReady
 hoặc SAMPLE-AES sẽ bị từ chối.
 
-## Build Windows EXE
+## Build Windows EXE & Setup Installer
 
+### 1. Tạo file cài đặt Setup.exe (Khuyên dùng)
+Chạy script tự động hóa 1-click để build toàn bộ app và tạo file cài đặt Windows chuẩn Inno Setup:
+
+```powershell
+python tools/build_installer.py
+```
+
+Kết quả:
+- **File cài đặt**: `dist\VideoDownloader_Setup_v1.0.0.exe` (khoảng 146 MB, nén LZMA2 siêu nhỏ gọn).
+- Hỗ trợ chọn thư mục cài đặt, tự tạo shortcut Desktop & Start Menu với icon chuyên nghiệp, đăng ký trình gỡ cài đặt (Uninstaller) trong Windows Settings / Control Panel.
+
+### 2. Build EXE độc lập bằng PyInstaller
 ```powershell
 python -m pip install -r requirements-dev.txt
 pyinstaller --clean --noconfirm VideoDownloader.spec
@@ -128,7 +140,8 @@ pyinstaller --clean --noconfirm VideoDownloader.spec
 ```
 
 File `dist/VideoDownloader.exe` mở trực tiếp giao diện Qt. Bản đóng gói chứa
-Python, thư viện ứng dụng và FFmpeg để ghép luồng hoặc xuất MP3.
+Python, thư viện ứng dụng, PySide6, Chromium WebEngine và FFmpeg để ghép luồng hoặc xuất MP3.
+
 
 Sau khi cài project bằng `pip install .`, lệnh `video-downloader` tương đương
 `python main.py`.

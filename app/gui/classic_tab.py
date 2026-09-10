@@ -11,6 +11,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Slot
 from PySide6.QtWidgets import (
+    QApplication,
     QComboBox,
     QFileDialog,
     QFormLayout,
@@ -116,9 +117,21 @@ class ClassicDownloaderTab(QWidget):
         # ── Input Section ──
         form = QFormLayout()
         form.setSpacing(8)
+
+        url_row = QHBoxLayout()
+        url_row.setSpacing(6)
         self.url_edit = QLineEdit()
         self.url_edit.setPlaceholderText("https://youtube.com/watch?v=...")
-        form.addRow("🔗  Video URL", self.url_edit)
+        url_row.addWidget(self.url_edit, 1)
+
+        paste_btn = QPushButton("📋 Paste")
+        paste_btn.setProperty("cssClass", "secondary")
+        paste_btn.setFixedWidth(75)
+        paste_btn.setToolTip("Paste URL from clipboard")
+        paste_btn.clicked.connect(self._paste_clipboard)
+        url_row.addWidget(paste_btn)
+
+        form.addRow("🔗  Video URL", url_row)
 
         self.quality_combo = QComboBox()
         self.quality_combo.addItems([quality.value for quality in Quality])
@@ -149,10 +162,17 @@ class ClassicDownloaderTab(QWidget):
         info_button = QPushButton("ℹ  Show Info")
         info_button.setProperty("cssClass", "secondary")
         info_button.clicked.connect(self._show_info)
+        open_folder_btn = QPushButton("📁 Open Folder")
+        open_folder_btn.setProperty("cssClass", "secondary")
+        open_folder_btn.setToolTip("Open current download destination folder")
+        open_folder_btn.clicked.connect(self._open_current_save_folder)
+
         button_row.addWidget(self.download_button)
         button_row.addWidget(info_button)
+        button_row.addWidget(open_folder_btn)
         button_row.addStretch()
         layout.addLayout(button_row)
+
 
         # ── Compact Progress Section ──
         progress_group = QGroupBox()
@@ -195,8 +215,24 @@ class ClassicDownloaderTab(QWidget):
         self.details.setPlaceholderText("Video information will appear here...")
         layout.addWidget(self.details, 1)
 
+    def _paste_clipboard(self) -> None:
+        """Paste URL text from system clipboard."""
+        clip = QApplication.clipboard()
+        text = clip.text().strip()
+        if text:
+            self.url_edit.setText(text)
+            self.url_edit.setFocus()
+
+    def _open_current_save_folder(self) -> None:
+        """Open the active download folder in File Explorer."""
+        import os
+        target_dir = get_initial_save_dir(self.config)
+        target_dir.mkdir(parents=True, exist_ok=True)
+        os.startfile(str(target_dir))
+
     def _service(self) -> DownloadService:
         return DownloadService(self.config)
+
 
     def _download(self) -> None:
         url = self.url_edit.text().strip()

@@ -5,7 +5,16 @@ from pathlib import Path
 from PySide6.QtCore import QSettings
 
 from app.config.settings import AppConfig
-from app.utils.path_helper import get_initial_save_dir, set_last_save_dir
+from app.utils.path_helper import (
+    get_app_data_dir,
+    get_asset_path,
+    get_history_file_path,
+    get_initial_save_dir,
+    get_safe_log_dir,
+    is_directory_writable,
+    set_last_save_dir,
+)
+
 
 
 def test_set_last_save_dir_with_directory(tmp_path: Path) -> None:
@@ -70,3 +79,49 @@ def test_get_initial_save_dir_fallback_to_downloads_or_home(tmp_path: Path) -> N
     result = get_initial_save_dir(config)
 
     assert result.exists()
+
+
+def test_get_app_data_dir() -> None:
+    """Test get_app_data_dir returns an existing directory."""
+    app_data = get_app_data_dir()
+    assert app_data.exists()
+    assert app_data.is_dir()
+
+
+def test_is_directory_writable(tmp_path: Path) -> None:
+    """Test is_directory_writable detects writable directories."""
+    assert is_directory_writable(tmp_path) is True
+
+
+def test_get_history_file_path_with_config(tmp_path: Path) -> None:
+    """Test get_history_file_path with a writable configured download directory."""
+    download_dir = tmp_path / "downloads"
+    download_dir.mkdir()
+    config = AppConfig(download_path=download_dir)
+    history_path = get_history_file_path(config)
+    assert history_path.parent.resolve() == download_dir.resolve()
+    assert history_path.name == "history.json"
+
+
+def test_get_history_file_path_without_config() -> None:
+    """Test get_history_file_path fallback without config."""
+    history_path = get_history_file_path(None)
+    assert history_path.name == "history.json"
+    assert history_path.parent.exists()
+
+
+def test_get_safe_log_dir(tmp_path: Path) -> None:
+    """Test get_safe_log_dir returns writable directory."""
+    log_dir = tmp_path / "custom_logs"
+    safe = get_safe_log_dir(log_dir)
+    assert safe.resolve() == log_dir.resolve()
+
+    safe_default = get_safe_log_dir(None)
+    assert safe_default.exists()
+
+
+def test_get_asset_path() -> None:
+    """Test get_asset_path resolves icon asset correctly."""
+    icon_path = get_asset_path("icon.png")
+    assert icon_path.name == "icon.png"
+
